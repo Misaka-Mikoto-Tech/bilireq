@@ -1,7 +1,7 @@
 import time
 import hashlib
 from hashlib import md5
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Tuple, Union
 from urllib.parse import urlencode
 
 from httpx import AsyncClient
@@ -64,7 +64,7 @@ def getsalt() -> str:
     return ''.join([(n+o)[i] for i in [46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35, 27, 43, 5, 49, 33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13, 37, 48, 7, 16, 24, 55, 40, 61, 26, 17, 0, 1, 60, 51, 30, 4, 22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52]])[:32]
 
 
-def sign(e: Union[str, dict]) -> tuple[str, str]:
+def sign(e: Union[str, dict]) -> Tuple[str, str]:
     '''传入参数字符串返回签名和时间tuple[w_rid,wts]
     -----------
     e:str格式：qn=32&fnver=0&fnval=4048&fourk=1&voice_balance=1&gaia_source=pre-load&avid=593238479&bvid=BV16q4y1k7mq&cid=486645610\n

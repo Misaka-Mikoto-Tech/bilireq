@@ -114,7 +114,8 @@ async def _request(
     else:
         cookies.update(auth.cookies)
     cookies.update(await get_homepage_cookies(proxies))
-    sign_params(params)
+    if '/wbi/' in url:
+        sign_params(params)
     async with AsyncClient(proxies=proxies) as client:
         resp = await client.request(
             method, url, headers=headers, params=params, cookies=cookies, **kwargs

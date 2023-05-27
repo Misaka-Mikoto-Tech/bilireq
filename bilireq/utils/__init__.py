@@ -181,4 +181,13 @@ async def get(url: URLTypes, **kwargs):
 
 
 async def post(url: URLTypes, **kwargs):
-    return await request("POST", url, **kwargs)
+    global _salt
+    try:
+        response = await request("POST", url, **kwargs)
+    except ResponseCodeError as e:
+        if e.code == -403:
+            _salt = await getsalt()
+            response = await request("POST", url, **kwargs)
+        else:
+            raise
+    return response

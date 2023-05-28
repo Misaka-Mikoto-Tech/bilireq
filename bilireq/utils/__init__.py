@@ -113,6 +113,10 @@ async def sign_params(params:Dict[str, Any]):
     params.pop('w_rid', '')
     params.pop('wts', '')
 
+    params['token'] = params.get('token', '')
+    params['platform'] = params.get('platform', 'web')
+    params['web_location'] = params.get('web_location', 1550101)
+
     w_rid, wts = await sign(params)
     params['w_rid'] = w_rid
     params['wts'] = wts

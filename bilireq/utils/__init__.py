@@ -51,7 +51,7 @@ def _encrypt_params(params: Dict[str, Any], local_id: int = 0) -> Dict[str, Any]
 
 # region sign params
 _salt = None
-# def getsalt() -> str:
+# def _getsalt() -> str:
 #     '''
 #     获取salt
 #     ----------
@@ -65,7 +65,7 @@ _salt = None
 #     o = wbi_sub_url.split('/')[-1].split('.')[0]
 #     return ''.join([(n+o)[i] for i in [46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35, 27, 43, 5, 49, 33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13, 37, 48, 7, 16, 24, 55, 40, 61, 26, 17, 0, 1, 60, 51, 30, 4, 22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52]])[:32]
 
-async def getsalt(*, proxies: ProxiesTypes = {"all://": None}):
+async def _getsalt(*, proxies: ProxiesTypes = {"all://": None}):
     async with AsyncClient(proxies=proxies) as client:
         url = "https://api.bilibili.com/x/web-interface/nav"
         req = await client.request(
@@ -88,7 +88,7 @@ async def getsalt(*, proxies: ProxiesTypes = {"all://": None}):
     salt = ''.join([array[i] for i in order])[:32]  # 按照特定顺序混淆并取前32位
     return salt
 
-async def sign(e: Union[str, dict]) -> Tuple[str, str]:
+async def _sign(e: Union[str, dict]) -> Tuple[str, str]:
     '''传入参数字符串返回签名和时间tuple[w_rid,wts]
     -----------
     e:str格式：qn=32&fnver=0&fnval=4048&fourk=1&voice_balance=1&gaia_source=pre-load&avid=593238479&bvid=BV16q4y1k7mq&cid=486645610\n
@@ -105,11 +105,11 @@ async def sign(e: Union[str, dict]) -> Tuple[str, str]:
         raise Exception(f'invalid type of e:{type(e)}')
     a.sort()
     if _salt is None:
-        _salt = await getsalt()
+        _salt = await _getsalt()
     w_rid = hashlib.md5(('&'.join(a)+_salt).encode(encoding='utf-8')).hexdigest()
     return w_rid, wts
 
-async def sign_params(params:Dict[str, Any]):
+async def _sign_params(params:Dict[str, Any]):
     params.pop('w_rid', '')
     params.pop('wts', '')
 
@@ -117,7 +117,7 @@ async def sign_params(params:Dict[str, Any]):
     params['platform'] = params.get('platform', 'web')
     params['web_location'] = params.get('web_location', 1550101)
 
-    w_rid, wts = await sign(params)
+    w_rid, wts = await _sign(params)
     params['w_rid'] = w_rid
     params['wts'] = wts
 
@@ -147,7 +147,7 @@ async def _request(
         cookies.update(auth.cookies)
     cookies.update(await get_homepage_cookies(proxies))
     if '/wbi/' in str(url):
-        await sign_params(params)
+        await _sign_params(params)
     async with AsyncClient(proxies=proxies) as client:
         resp = await client.request(
             method, url, headers=headers, params=params, cookies=cookies, **kwargs
@@ -157,11 +157,22 @@ async def _request(
 
 
 async def request(
-    method: str, url: URLTypes, *, raw: bool = False, **kwargs
+    method: str, url: URLTypes, *, raw: bool = False, retry_time: int = 3, **kwargs
 ) -> Dict[str, Any]:
     raw_json: Dict[str, Any] = (await _request(method, url, **kwargs)).json()
     if raw:
         return raw_json
+    if raw_json["code"] == -403: # 权限不足，重新获取salt
+        retry_time -= 1
+        if retry_time < 0:
+            raise ResponseCodeError(
+                code=raw_json["code"],
+                msg=raw_json["message"],
+                data=raw_json.get("data", None),
+            )
+        global _salt
+        _salt = await _getsalt()
+        return await request(method, url, retry_time=retry_time, **kwargs)
     if raw_json["code"] != 0:
         raise ResponseCodeError(
             code=raw_json["code"],
@@ -172,26 +183,7 @@ async def request(
 
 
 async def get(url: URLTypes, **kwargs):
-    global _salt
-    try:
-        response = await request("GET", url, **kwargs)
-    except ResponseCodeError as e:
-        if e.code == -403:
-            _salt = await getsalt()
-            response = await request("GET", url, **kwargs)
-        else:
-            raise
-    return response
-
+    return await request("GET", url, **kwargs)
 
 async def post(url: URLTypes, **kwargs):
-    global _salt
-    try:
-        response = await request("POST", url, **kwargs)
-    except ResponseCodeError as e:
-        if e.code == -403:
-            _salt = await getsalt()
-            response = await request("POST", url, **kwargs)
-        else:
-            raise
-    return response
+    return await request("POST", url, **kwargs)
